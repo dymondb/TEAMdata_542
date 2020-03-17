@@ -1,0 +1,1151 @@
+---
+title: "542_Final"
+author: "Brittany Dymond, Hailey Fagerness, Cecilia Liang, Kathy Wang"
+date: "3/16/2020"
+output: html_document
+---
+
+# Fossil Fuels & Economic Development
+
+## Rationale of our two questions
+
+How do fossil fuels relate to social and economic development in different countries? 
+* Can we identify groups of countries with similar oil production and GDP and if/how oil production impacts a country’s GDP?
+* Can we identify groups of countries with similar population and fossil fuel usage and if/how population size affects fossil fuel usage?
+
+Data: 
+* Population
+* GDP per Capita
+* Oil Production (92 countries)
+* Fossil fuel use (as % of total electricity generating capacity)
+  
+## ***QUESTION 1 CLUSTERING CODE START***
+RESEARCH QUESTION: 'Can we identify groups of countries with similar oil production and GDP and if/how oil production impacts a country’s GDP?'
+
+Data used:
+* Oil Production: [from U.S. Energy Information Administration] For calendar year 2019, on a comparable best-estimate basis
+* GDP per Capita: [from Wikipedia] Converted at market exchange rates to current U.S. dollars, divided by the population for the same year
+
+
+Prep to cluster OilProduction and GDP_pc
+Getting data from github and initializing：
+
+```{r, echo = FALSE}
+link='https://github.com/haileyfagerness/PUBPOL542ProjectData/raw/master/finalData.RDS'
+myFile=url(link)
+DF=readRDS(file=myFile)
+row.names(DF)=NULL
+
+library(dplyr)
+DF=DF%>%
+  rename(GDP_pc=USDollar)
+
+link1 = 'https://github.com/Cecilia0401/CleanData/raw/master/DFnew1.csv'
+myFile2 = url(link1)
+DFnew2= read.csv(file = myFile2)
+row.names(DFnew2) = NULL
+```
+
+
+Removing rows where OilProduction == 0：
+
+```{r, echo = FALSE}
+
+DFnew=subset(DF, OilProduction!=0)
+DFnew = DFnew %>% mutate(Continent = DFnew2$Continent)
+DFnew1=subset(DF,OilProduction!= 0)
+
+```
+
+### Clustering Part
+
+Preparing to cluster oil production & GDP：
+
+```{r, echo = FALSE}
+
+dfClus=DFnew[,c(3,5)]
+row.names(dfClus)=DFnew$Country
+head(dfClus)
+set.seed(999) 
+```
+This is for replicability of results.
+
+
+```{r, echo = FALSE}
+library(cluster)
+dfClus_D=cluster::daisy(x=dfClus,metric="gower")
+```
+
+### Partitioning Technique:  PAM 
+
+1. Apply function and indicate the amount of clusters required
+
+```{r, echo = FALSE}
+NumCluster=4
+res.pam = pam(x=dfClus_D,k = NumCluster,cluster.only = F)
+```
+
+
+2. Clustering results
+
+```{r, echo = FALSE}
+DFnew$pam=as.factor(res.pam$clustering)
+```
+
+
+TABLE OF CLUSTERS：
+
+```{r, echo = FALSE}
+table(DFnew$pam)
+```
+
+3. Evaluate Results
+
+AVG SILHOUETTES：
+
+```{r, echo = FALSE}
+library(factoextra)
+fviz_silhouette(res.pam)
+```
+
+
+DECTECTING ANOMALIES：
+
+```{r, echo = FALSE}
+pamEval=data.frame(res.pam$silinfo$widths)
+head(pamEval)
+```
+
+
+Requesting negative silhouettes：
+
+```{r, echo = FALSE}
+pamEval[pamEval$sil_width<0,]
+```
+
+
+### Hierarchizing/Agglomerative Technique:  AGNES
+
+1. Apply function and indicate the amount of clusters required
+```{r, echo = FALSE}
+library(factoextra)
+res.agnes= hcut(dfClus_D, k = NumCluster,isdiss=T,
+                 hc_func='agnes',
+                 hc_method = "ward.D2")
+```
+
+
+2. Clustering results
+```{r, echo = FALSE}
+DFnew$agn=as.factor(res.agnes$cluster)
+```
+
+TABLE OF CLUSTERS:
+
+```{r, echo = FALSE}
+table(DFnew$agn)
+```
+
+
+3. Evaluate results
+
+DENDOGRAM:
+
+```{r, echo = FALSE}
+fviz_dend(res.agnes,k=NumCluster, cex = 0.7, horiz = T)
+```
+
+
+AVG SILHOUETTES:
+
+```{r, echo = FALSE}
+library(factoextra)
+fviz_silhouette(res.agnes)
+```
+
+
+DECTECTING ANOMALIES:
+
+```{r, echo = FALSE}
+agnEval=data.frame(res.agnes$silinfo$widths)
+head(agnEval)
+```
+
+
+Requesting negative silhouettes:
+
+```{r, echo = FALSE}
+agnEval[agnEval$sil_width<0,]
+```
+
+
+### Hierarchizing/Divisive Technique:  DIANA 
+
+1. Apply function and indicate the amount of clusters required
+
+```{r, echo = FALSE}
+library(factoextra)
+
+res.diana= hcut(dfClus_D, k = NumCluster,
+                 hc_func='diana',
+                 hc_method = "ward.D")
+
+```
+
+
+2. Clustering results
+
+```{r, echo = FALSE}
+DFnew$dia=as.factor(res.diana$cluster)
+```
+
+
+TABLE OF CLUSTERS:
+
+```{r, echo = FALSE}
+table(DFnew$dia)
+```
+
+
+3. Evaluate results
+
+DENDOGRAM:
+
+```{r, echo = FALSE}
+fviz_dend(res.diana,k=NumCluster, cex = 0.7, horiz = T)
+```
+
+
+AVG SILHOUETTES:
+
+```{r, echo = FALSE}
+library(factoextra)
+fviz_silhouette(res.diana)
+```
+
+
+DECTECTING ANOMALIES:
+
+```{r, echo = FALSE}
+diaEval=data.frame(res.diana$silinfo$widths)
+head(diaEval)
+```
+
+
+Requesting negative silhouettes:
+
+```{r, echo = FALSE}
+diaEval[diaEval$sil_width<0,]
+```
+
+
+### Density Based Clustering:  DBSCAN
+
+```{r, echo = FALSE}
+library(dbscan)
+minNeighs=4
+kNNdistplot(dfClus_D, k = minNeighs)
+abline(h=.03, col = "red", lty=2)
+```
+
+
+
+```{r, echo = FALSE}
+distance=0.03
+res.db = dbscan::dbscan(dfClus_D, eps=distance, 
+                     minPts=minNeighs)
+```
+
+
+HOW MANY OUTLIERS?
+(0 identified outliers)
+
+```{r, echo = FALSE}
+res.db  
+```
+
+
+
+```{r, echo = FALSE}
+DFnew$db=as.factor(res.db$cluster)
+```
+
+
+Save coordinates to original data frame:
+
+```{r, echo = FALSE}
+projectedData = cmdscale(dfClus_D, k=2)
+DFnew$dim1 = projectedData[,1]
+DFnew$dim2 = projectedData[,2]
+```
+
+
+
+```{r, echo = FALSE}
+base= ggplot(data=DFnew,
+             aes(x=dim1, y=dim2,
+                 label=Country)) 
+base + geom_text(size=2)
+```
+
+
+* Plot PAM：
+
+```{r, echo = FALSE}
+pamPlot=base + labs(title = "PAM") + geom_point(size=2,
+                                              aes(color=pam),
+                                              show.legend = F)  
+```
+
+
+* Plot AGNES：
+
+```{r, echo = FALSE}
+agnPlot=base + labs(title = "AGNES") + geom_point(size=2,
+                                              aes(color=agn),
+                                              show.legend = F) 
+```
+
+
+* Plot DIANA：
+
+```{r, echo = FALSE}
+diaPlot=base + labs(title = "DIANA") + geom_point(size=2,
+                                              aes(color=dia),
+                                              show.legend = F) 
+```
+
+
+Compare results visually：
+
+```{r, echo = FALSE}
+library(ggpubr)
+ggarrange(pamPlot, agnPlot, diaPlot, ncol = 3)
+```
+
+
+* Plot DBSCAN：
+
+```{r, echo = FALSE}
+dbPlot= base + labs(title = "DBSCAN") + geom_point(aes(color=db),
+                                               show.legend = T) 
+dbPlot
+```
+
+
+Annotating:
+
+```{r, echo = FALSE}
+library(ggrepel)
+dbPlot + geom_text_repel(size=3,aes(label=Country))
+```
+
+
+Annotating Outliers:
+
+```{r, echo = FALSE}
+LABEL=ifelse(DFnew$db==0,DFnew$Country,"")
+dbPlot + geom_text_repel(aes(label=LABEL))
+```
+
+
+BASED ON CLUSTERING, WE WILL USE DBSCAN.
+This cluster had high production &/OR high GDP (outliers).
+```{r, echo = FALSE}
+DFnew[DFnew$db==0,'Country']
+```
+
+
+This cluster had higher production & lower GDP.
+```{r, echo = FALSE}
+DFnew[DFnew$db==1,'Country']
+```
+
+
+This cluster had lower production & lower GDP.
+```{r, echo = FALSE}
+DFnew[DFnew$db==2,'Country']
+```
+
+
+This cluster had lower production & higher GDP.
+```{r, echo = FALSE}
+DFnew[DFnew$db==3,'Country']
+```
+
+
+##  ***QUESTION 1 REGRESSION START***
+
+
+* Hypothesis:
+
+     + Model 1: GDP Per Capita ~ Oil Production
+     
+     + Model 2: GDP Per Capita ~ Oil Production + Continent
+     
+* Continuous Outcome -- --  GDP Per Capita  
+* Independent variable -- -- Oil Production
+* Control variable -- -- Continent
+* Rationale for hypothesis
+  + Oil infrastructure supports GDP 
+  + OPEC // many economies heavily rely on oil income 
+  + Oil price wars (like now with Saudi Arabia and Russia) impact oil prices and thus  GDP
+
+
+Preparing to regress Oil Production & GDP
+
+```{r, echo = FALSE}
+str(DFnew,width = 70,strict.width='cut')
+```
+
+
+
+### EXPLANATORY APPROACH
+
+1.State the hypotheses
+
+```{r, echo = TRUE}
+hypo1=formula(GDP_pc ~ OilProduction)
+hypo2=formula(GDP_pc ~ OilProduction + Continent)
+```
+
+
+2.Save colums needed and varify data types
+
+```{r, echo = FALSE}
+colsNeeded=c('OilProduction','GDP_pc', 'Continent')
+str(DFnew[,colsNeeded])
+```
+
+
+```{r, echo = FALSE}
+DataRegGauss=DFnew[,colsNeeded]
+#Rename indexes by country
+row.names(DataRegGauss)=DFnew$Country
+```
+
+
+3.Compute regression models
+
+```{r, echo = FALSE}
+gauss1=glm(hypo1,data = DataRegGauss,family = 'gaussian')
+gauss2=glm(hypo2,data = DataRegGauss,family = 'gaussian')
+```
+
+
+4.Hypothesis results
+
+* First Hypothesis:
+
+```{r, echo = FALSE}
+summary(gauss1)
+```
+
+* Second Hypothesis:
+
+```{r}
+summary(gauss2)
+```
+
+5.Searching for a better model
+
+```{r, echo = FALSE}
+anova(gauss1,gauss2,test="Chisq")
+```
+
+
+Model for the Second hypothesis is chosen. This is the RSquared:
+```{r, echo = FALSE}
+library(rsq)
+rsq(gauss2,adj=T)
+```
+
+6.Verify the situation of chosen model:
+
+6.1. Linearity between dependent variable and predictors is assumed, then these dots should follow a linear and horizontal trend:
+
+```{r, echo = FALSE}
+plot(gauss2,1)
+```
+The linear trend is not obvious, and the distribution range goes wider when the predicted values increase. I’d like to say it represents the linearity between our variables in a certain level. Further research upon outliers are necessary.
+
+
+6.2. Normality of residuals is assumed:
+
+Visual exploration
+
+```{r, echo = FALSE}
+plot(gauss2,2)
+```
+
+
+Mathematical exploration:
+
+```{r, echo = FALSE}
+shapiro.test(gauss2$residuals)
+```
+
+
+6.3. Homoscedasticity is assumed, so check if residuals are spread equally along the ranges of predictors
+
+Visual exploration:
+
+```{r, echo = FALSE}
+plot(gauss2, 3)
+```
+
+
+Mathematical exploration:
+
+```{r, echo = FALSE}
+library(lmtest)
+bptest(gauss2)
+```
+
+
+6.4. We assume that there is no colinearity, that is, that the predictors are not correlated.
+
+```{r, echo = FALSE}
+library(car)
+vif(gauss2) 
+```
+
+
+6.5. Analize the effect of atypical values. Determine if outliers (points that are far from the rest, but still in the trend) or high-leverage points (far from the trend but close to the rest) are influential
+
+Visual exploration:
+
+```{r, echo = FALSE}
+
+plot(gauss2,5)
+```
+
+
+Querying:
+
+```{r, echo == TRUE}
+gaussInf=as.data.frame(influence.measures(gauss2)$is.inf)
+gaussInf[gaussInf$cook.d,]
+```
+
+7. Finally, a nice summary plot of our work
+```{r, echo = FALSE}
+library(sjPlot)
+plot_models(gauss2,vline.color = "grey")
+```
+
+### PREDICTIVE APPROACH
+ 
+ 1. Splitting the data set 
+
+```{r, echo = FALSE}
+library(caret)
+
+set.seed(123)
+selection = createDataPartition(DataRegGauss$GDP_pc,
+                                p = 0.75,
+                                list = FALSE)
+trainGauss = DataRegGauss[ selection, ]
+testGauss  = DataRegGauss[-selection, ]
+```
+
+
+2. Regress with train data 
+
+```{r, echo = FALSE}
+ctrl = trainControl(method = 'cv',number = 5)
+gauss2CV = train(hypo2,
+                 data = trainGauss, 
+                 method = 'glm',
+                 trControl = ctrl)
+summary(gauss2CV)
+```
+
+3. Evaluate performance
+
+```{r, echo = FALSE}
+
+predictedVal<-predict(gauss2CV,testGauss)
+
+postResample(obs = testGauss$GDP_pc, pred=predictedVal)
+```
+
+
+
+
+
+
+
+________________________
+
+##  ***QUESTION 2 CLUSTERING START***
+
+RESEARCH QUESTION: 'Can we identify groups of countries with similar population and fossil fuel usage and if/how population size affects fossil fuel usage?'
+
+Data used:
+* fossilFuel_PctTotalElec: [from CIA World Factbook] percentage of total electricity generating capacity that comes from fossil fuels
+* Population: [UN Dept of Economic and Social Affairs] World population estimates
+
+
+Prep to cluster fossilFuel_PctTotalElec and Population
+
+```{r, echo=FALSE}
+
+dfClus1=DFnew[,c(2,4)]
+row.names(dfClus1)=DFnew$Country
+head(dfClus1)
+
+```
+
+
+Set random seed for replicability of results:
+
+```{r, echo=FALSE}
+
+set.seed(999)
+
+```
+
+
+
+Setting distance matrix:
+
+```{r, echo=FALSE}
+library(cluster)
+dfClus_D1=cluster::daisy(x=dfClus1,metric="gower")
+
+```
+
+
+
+Defining number of clusters for each method (NumCluster = 5)
+Clustering via pam method:
+
+```{r, echo=FALSE}
+
+NumCluster=5
+res.pam1 = pam(x=dfClus_D1,k = NumCluster,cluster.only = F)
+
+```
+
+
+Adding pam results to original DF (DFnew1)
+
+```{r, echo=FALSE}
+
+DFnew1$pam=as.factor(res.pam1$clustering)
+
+```
+
+
+
+REPORT: Table of Cluster:
+
+```{r, echo=FALSE}
+
+table(DFnew1$pam)
+
+```
+
+
+REPORT: Evaluate Results:
+
+```{r, echo=FALSE}
+
+library(factoextra)
+fviz_silhouette(res.pam1)
+
+```
+
+
+REPORT: Detecting Anomalies
+
+Saving individual silhouettes
+
+```{r, echo=FALSE}
+
+pamEval1=data.frame(res.pam1$silinfo$widths)
+head(pamEval1)
+
+```
+
+
+Requesting negative silhouettes:
+
+```{r, echo=FALSE}
+
+pamEval1[pamEval1$sil_width<0,]
+
+```
+
+
+Cluster via agnes method; indicate number of clusters (NumCluster):
+
+```{r, echo=FALSE}
+
+library(factoextra)
+
+res.agnes1=hcut(dfClus_D1, k = NumCluster,isdiss=T,
+           	hc_func = 'agnes',
+           	hc_method = "ward.D2")
+
+```
+
+
+Adding agn results to original DF (DFnew1)
+
+```{r, echo=FALSE}
+
+DFnew1$agn=as.factor(res.agnes1$cluster)
+
+```
+
+
+REPORT: Table of clusters:
+
+```{r, echo=FALSE}
+
+table(DFnew1$agn)
+
+```
+
+
+Evaluating results:
+
+```{r, echo=FALSE}
+
+fviz_dend(res.agnes1,k=NumCluster,cex = 0.7, horiz = T)
+
+```
+
+
+REPORT: Average silhouettes
+
+```{r, echo=FALSE}
+
+fviz_silhouette((res.agnes1))
+
+```
+
+
+
+REPORT: Detecting anomalies
+
+```{r, echo=FALSE}
+
+agnEval1=data.frame(res.agnes1$silinfo$widths)
+head(agnEval1)
+
+```
+
+
+Requesting negative silhouettes:
+
+```{r, echo=FALSE}
+
+agnEval1[agnEval1$sil_width<0,]
+
+```
+
+
+Cluster via diana method; indicate number of clusters (NumCluster):
+
+```{r, echo=FALSE}
+
+library(factoextra)
+
+res.diana1 = hcut(dfClus_D1, k = NumCluster,
+             	hc_func = 'diana',
+             	hc_method = "ward.D")
+
+```
+
+
+
+Adding diana results to original DF (DFnew1):
+
+```{r, echo=FALSE}
+
+DFnew1$dia=as.factor(res.diana1$cluster)
+
+```
+
+
+
+REPORT: Table of clusters
+
+```{r, echo=FALSE}
+
+table(DFnew1$dia)
+
+```
+
+REPORT: Dendrogram
+```{r, echo=FALSE}
+
+fviz_dend(res.diana1, k = NumCluster, cex = 0.7, horiz = T)
+
+```
+
+
+REPORT: Average silhouettes
+
+```{r, echo=FALSE}
+
+library(factoextra)
+
+fviz_silhouette(res.diana1)
+
+```
+
+REPORT: Detecting anomalies:
+```{r, echo=FALSE}
+
+diaEval1=data.frame(res.diana1$silinfo$widths)
+head(diaEval1)
+
+```
+
+
+Requesting negative silhouettes:
+```{r, echo=FALSE}
+
+diaEval1[diaEval1$sil_width<0,]
+
+```
+
+Cluster via DBSCAN method; indicate minimum neighbors (4): 
+
+```{r, echo=FALSE}
+
+library(dbscan)
+minNeighs=4
+kNNdistplot(dfClus_D1, k = minNeighs)
+abline(h=.03, col = "red", lty=2)
+
+```
+
+
+Setting distance (epsilon):
+
+```{r, echo=FALSE}
+
+distance = 0.03
+res.db1= dbscan::dbscan(dfClus_D1, eps=distance,
+                    	minPts = minNeighs)
+
+```
+
+
+ 
+REPORT: Number of clusters and outliers produced
+
+```{r, echo=FALSE}
+
+res.db1
+
+```
+
+
+Saving results:
+
+```{r, echo=FALSE}
+
+DFnew1$db=as.factor(res.db1$cluster)
+
+```
+
+
+Comparing clusters
+
+Prepare a bidimensional map:
+
+```{r, echo=FALSE}
+
+projectedData1 = cmdscale(dfClus_D1, k=2)
+
+DFnew1$dim1 = projectedData1[,1]
+DFnew1$dim2 = projectedData1[,2]
+
+```
+
+
+
+View bidimensional map:
+
+```{r, echo=FALSE}
+
+base1 = ggplot(data=DFnew1,
+          	aes(x=dim1, y=dim2,
+              	label = Country))
+
+base1 + geom_text(size=2)
+
+```
+
+
+Results from pam:
+
+```{r, echo=FALSE}
+
+pamPlot1=base1 + labs(title = "PAM") + geom_point(size = 2,
+                                            	aes(color=pam),
+                                            	show.legend = F)
+
+```
+
+
+Results from agnes:
+
+```{r, echo=FALSE}
+
+agnPlot1=base1 + labs(title = "AGNES") + geom_point(size = 2,
+                                            	aes(color=agn),
+                                            	show.legend = F)
+
+```
+
+
+Results from diana：
+
+```{r, echo=FALSE}
+
+diaPlot1=base1 + labs(title = "DIANA") + geom_point(size = 2,
+                                            	aes(color=dia),
+                                            	show.legend = F)
+
+```
+
+
+Compare visually:
+
+Viewing pam, agnes, and diana plots side by side
+
+```{r, echo=FALSE}
+
+library(ggpubr)
+ggarrange(pamPlot1, agnPlot1, diaPlot1, ncol = 3)
+
+```
+
+
+Plot results from DBSCAN：
+
+```{r, echo=FALSE}
+
+dbplot1 = base1 + labs(title = "DBSCAN") + geom_point(aes(color=db),
+                                                	show.legend = T)
+
+dbplot1
+
+```
+
+
+Annotating graph with country names：
+
+```{r, echo=FALSE}
+
+library(ggrepel)
+dbplot1 + geom_text_repel(size=3,aes(label=Country))
+
+```
+
+
+Annotating just the outlier countries：
+
+```{r, echo=FALSE}
+
+LABEL1=ifelse(DFnew1$db==0,DFnew1$Country,"")
+
+dbplot1 + geom_text_repel(aes(label=LABEL))
+
+```
+
+
+ CHOOSING DIANA METHOD DUE TO HAVING ZERO NEGATIVE SILHOUETTES。
+
+
+
+##  ***QUESTION 2 REGRESSION CODE START***
+
+
+* Hypothesis:
+  + Model 1: FF ~ Population
+  + Model 2: FF ~ Population + Developed
+* Method:
+  + Binary Outcome -- --  FF usage (Median percentage FF use of total electricity capacity)
+* Control variable -- --  Developed (Median GDP per capita)
+* Independent variable -- -- Population
+* Rationale for hypothesis:
+  + Larger populations would exhibit higher fossil fuel usage as a percent of total electricity capacity
+
+```{r, echo=FALSE}
+team=DF
+row.names(team)=NULL
+```
+
+
+
+Changing dtype for population：
+```{r, echo=FALSE}
+
+team$Population<-as.numeric(as.character(team$Population))
+
+sapply(team,class)
+```
+
+
+Changing dtype for GDP_pc(gdp):
+```{r, echo=FALSE}
+
+team$GDP_pc<-as.numeric(as.character(team$GDP_pc))
+
+sapply(team,class)
+```
+
+
+Filtering out non-oil producing countries & creating new DF (teamnew):
+
+```{r, echo=FALSE}
+
+teamnew=subset(team,OilProduction!=0)
+teamnew
+```
+
+
+
+Converting USDollar to a factor variable
+
+Calling new variable 'Developed'
+
+```{r, echo=FALSE}
+
+Threshold=median(teamnew$GDP_pc)
+teamnew$Developed=teamnew$GDP_pc>Threshold
+
+teamnew$Developed=factor(teamnew$Developed,
+                  	levels = c(F,T),
+                  	labels = c(0,1))
+```
+
+
+Converting fossilFuel_PctTotalElec to a factor variable
+
+Calling new variable 'FF'
+
+```{r, echo=FALSE}
+
+Threshold=median(teamnew$fossilFuel_PctTotalElec)
+teamnew$FF=teamnew$fossilFuel_PctTotalElec>Threshold
+
+teamnew$FF=factor(teamnew$FF,
+                  	levels = c(F,T),
+                  	labels = c(0,1))
+```
+
+
+
+Checking dtypes:
+
+```{r, echo=FALSE}
+
+str(teamnew,width = 70,strict.width='cut')
+
+```
+
+
+
+Defining 'Population' as independent variable:
+
+```{r, echo=FALSE}
+
+hypo3=formula(FF~Population)
+hypo4=formula(FF~Population + Developed)
+
+```
+
+
+Defining columns needed：
+
+```{r, echo=FALSE}
+
+colsNeededDico=c('FF','Population','Developed')
+
+```
+
+
+Verify dtypes for colsNeededDico:
+
+```{r, echo=FALSE}
+
+str(teamnew[,colsNeededDico])
+
+```
+
+Create subset
+
+Rename indexes by country
+
+```{r, echo=FALSE}
+
+DataRegLogis=teamnew[,colsNeededDico]
+
+row.names(DataRegLogis)=teamnew$Country
+
+```
+
+Define & compute regression models
+```{r, echo=FALSE}
+
+Logi3=glm(hypo3,data = DataRegLogis,family = "binomial")
+Logi4=glm(hypo4,data = DataRegLogis,family = "binomial")
+
+```
+
+
+Results of hypo3:
+
+At p-value of 0.634, this model is not statistically significant
+
+```{r, echo=FALSE}
+
+summary(Logi3)
+
+```
+
+Results of hypo4:
+
+At p-values of 0.631 and 0.673, this model also is not statistically significant:
+```{r, echo=FALSE}
+
+summary(Logi4)
+
+```
+
+Analysis of variance between models:
+
+```{r, echo=FALSE}
+
+anova(Logi3, Logi4, test = "LRT")
+
+```
+
+
+## Recommendations 
+
+### First Question
+Oil production could be an important component of GDP, but higher oil production rate does not lead to higher GDP. If we want to evaluate the relationship between GDP and oil production, we also need to know what is the percentage of the GDP generated by oil production. 
+*Same level variables are more easy to be compared
+*Too many countries that their oil production is close to zero
+*Try other control variables like export/import 
+*Higher oil production does not lead to higher GDP necessarily
+
+### Second Question
+Neither model is statistically significant; no further analysis required.
+
+Recommendations for future analysis of question #2 include:
+*Incorporate country-specific income levels as an additional variable
+*Remove major outliers from sample population
+*Use actual fossil fuel usage data in lieu of ratios
+
+
